@@ -100,23 +100,23 @@ public final class EntityCamSelectScreen extends Screen {
 			for (Entity e : entities) addEntry(new EntityEntry(e));
 		}
 	}
-
-			@Override
-		public List<? extends net.minecraft.client.gui.Element> children() {
-			return List.of();
-		}
-
-		@Override
-		public List<? extends net.minecraft.client.gui.Selectable> selectableChildren() {
-			return List.of();
-		}
+		
+	
 	private final class EntityEntry extends ElementListWidget.Entry<EntityEntry> {
 		private final Entity entity;
 
 		private EntityEntry(Entity entity) {
 			this.entity = entity;
 		}
+			@Override
+		public List<net.minecraft.client.gui.Element> children() {
+			return List.of();
+		}
 
+		@Override
+		public List<net.minecraft.client.gui.Selectable> selectableChildren() {
+			return List.of();
+		}
 		@Override
 		public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
 			if (client == null || client.player == null) return;
