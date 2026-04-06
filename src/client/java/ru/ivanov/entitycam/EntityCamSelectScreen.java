@@ -101,6 +101,15 @@ public final class EntityCamSelectScreen extends Screen {
 		}
 	}
 
+			@Override
+		public List<? extends net.minecraft.client.gui.Element> children() {
+			return List.of();
+		}
+
+		@Override
+		public List<? extends net.minecraft.client.gui.Selectable> selectableChildren() {
+			return List.of();
+		}
 	private final class EntityEntry extends ElementListWidget.Entry<EntityEntry> {
 		private final Entity entity;
 
