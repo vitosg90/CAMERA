@@ -80,7 +80,7 @@ public final class EntityCamSelectScreen extends Screen {
 
 	@Override
 	public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-		renderBackground(context, mouseX, mouseY, delta);
+		this.renderInGameBackground(context);	
 		super.render(context, mouseX, mouseY, delta);
 
 		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 6, 0xFFFFFF);
