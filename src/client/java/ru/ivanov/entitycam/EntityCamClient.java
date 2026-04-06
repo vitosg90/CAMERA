@@ -28,27 +28,34 @@ public final class EntityCamClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-	"key.entitycam.toggle",
-	GLFW.GLFW_KEY_V,
-	KeyBinding.Category.MISC
-));
+			"key.entitycam.toggle",
+			GLFW.GLFW_KEY_V,
+			KeyBinding.Category.MISC
+		));
 
-nextKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-	"key.entitycam.next",
-	GLFW.GLFW_KEY_RIGHT_BRACKET,
-	KeyBinding.Category.MISC
-));
+		nextKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+			"key.entitycam.next",
+			GLFW.GLFW_KEY_RIGHT_BRACKET,
+			KeyBinding.Category.MISC
+		));
 
-prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-	"key.entitycam.prev",
-	GLFW.GLFW_KEY_LEFT_BRACKET,
-	KeyBinding.Category.MISC
-));
+		prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+			"key.entitycam.prev",
+			GLFW.GLFW_KEY_LEFT_BRACKET,
+			KeyBinding.Category.MISC
+		));
+
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			while (toggleKey.wasPressed()) toggle(client);
+			while (nextKey.wasPressed()) cycle(client, +1);
+			while (prevKey.wasPressed()) cycle(client, -1);
+		});
+	}
 
 	private static void toggle(MinecraftClient client) {
 		if (client.player == null || client.world == null) return;
 
-		var currentCamera = client.getCameraEntity();
+		Entity currentCamera = client.getCameraEntity();
 		if (originalCameraEntity != null && currentCamera != null && currentCamera != originalCameraEntity) {
 			client.setCameraEntity(originalCameraEntity);
 			originalCameraEntity = null;
@@ -71,7 +78,7 @@ prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 
 	private static void cycle(MinecraftClient client, int dir) {
 		if (client.player == null || client.world == null) return;
-		if (originalCameraEntity == null) return; // not in entity cam mode
+		if (originalCameraEntity == null) return;
 
 		Entity current = client.getCameraEntity();
 		if (current == null) return;
@@ -85,12 +92,7 @@ prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 		}
 
 		int idx = candidates.indexOf(current);
-		int nextIdx;
-		if (idx < 0) {
-			nextIdx = 0;
-		} else {
-			nextIdx = Math.floorMod(idx + dir, candidates.size());
-		}
+		int nextIdx = (idx < 0) ? 0 : Math.floorMod(idx + dir, candidates.size());
 
 		Entity next = candidates.get(nextIdx);
 		client.setCameraEntity(next);
@@ -104,7 +106,6 @@ prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 			if (e != null && e.isAlive() && e != client.player) return e;
 		}
 
-		// Fallback: nearest alive entity around the player (within radius)
 		List<Entity> candidates = getNearbyEntities(client);
 		return candidates.stream()
 			.min(Comparator.comparingDouble(e -> e.squaredDistanceTo(client.player)))
@@ -123,4 +124,3 @@ prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 		client.player.sendMessage(Text.literal("[EntityCam] " + msg), true);
 	}
 }
-
