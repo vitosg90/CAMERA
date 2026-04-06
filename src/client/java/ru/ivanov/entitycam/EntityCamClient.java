@@ -28,19 +28,19 @@ public final class EntityCamClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"key.entitycam.toggle",
+			"KeyBinding.Category.MISC",
 			GLFW.GLFW_KEY_V,
 			"category.entitycam"
 		));
 
 		nextKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"key.entitycam.next",
+			"KeyBinding.Category.MISC",
 			GLFW.GLFW_KEY_RIGHT_BRACKET,
 			"category.entitycam"
 		));
 
 		prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"key.entitycam.prev",
+			"KeyBinding.Category.MISC",
 			GLFW.GLFW_KEY_LEFT_BRACKET,
 			"category.entitycam"
 		));
