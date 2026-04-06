@@ -22,6 +22,7 @@ public final class EntityCamClient implements ClientModInitializer {
 	private static KeyBinding toggleKey;
 	private static KeyBinding nextKey;
 	private static KeyBinding prevKey;
+	private static KeyBinding openMenuKey;
 
 	private static Entity originalCameraEntity;
 
@@ -45,11 +46,23 @@ public final class EntityCamClient implements ClientModInitializer {
 			KeyBinding.Category.MISC
 		));
 
+		openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+			"key.entitycam.menu",
+			GLFW.GLFW_KEY_B,
+			KeyBinding.Category.MISC
+		));
+
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			while (toggleKey.wasPressed()) toggle(client);
 			while (nextKey.wasPressed()) cycle(client, +1);
 			while (prevKey.wasPressed()) cycle(client, -1);
+			while (openMenuKey.wasPressed()) openMenu(client);
 		});
+	}
+
+	private static void openMenu(MinecraftClient client) {
+		if (client.player == null || client.world == null) return;
+		client.setScreen(new EntityCamSelectScreen());
 	}
 
 	private static void toggle(MinecraftClient client) {
