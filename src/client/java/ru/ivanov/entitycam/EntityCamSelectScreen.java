@@ -1,9 +1,8 @@
 package ru.ivanov.entitycam;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ElementListWidget;
@@ -20,6 +19,7 @@ import java.util.Locale;
 
 public final class EntityCamSelectScreen extends Screen {
 	private static final int SEARCH_RADIUS_BLOCKS = 64;
+	private static final int ITEM_HEIGHT = 22;
 
 	private TextFieldWidget filter;
 	private EntityList list;
@@ -37,8 +37,10 @@ public final class EntityCamSelectScreen extends Screen {
 		addDrawableChild(filter);
 
 		int listTop = top + 24;
-		int listBottom = height - 40;
-		list = new EntityList(client, width, listBottom - listTop, listTop, listBottom, 22);
+		int listHeight = height - listTop - 40;
+
+		list = new EntityList(client, width - 20, listHeight, listTop, ITEM_HEIGHT);
+		list.setX(10);
 		addDrawableChild(list);
 
 		addDrawableChild(ButtonWidget.builder(Text.literal("Refresh"), b -> refresh())
@@ -60,7 +62,7 @@ public final class EntityCamSelectScreen extends Screen {
 	private void refresh() {
 		if (client == null || client.player == null || client.world == null) return;
 
-		String q = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
+		String q = (filter.getText() == null ? "" : filter.getText()).trim().toLowerCase(Locale.ROOT);
 
 		Box box = client.player.getBoundingBox().expand(SEARCH_RADIUS_BLOCKS);
 		List<Entity> entities = client.world.getOtherEntities(client.player, box, e -> e != null && e.isAlive());
@@ -68,11 +70,9 @@ public final class EntityCamSelectScreen extends Screen {
 
 		List<Entity> filtered = new ArrayList<>(entities.size());
 		for (Entity e : entities) {
-			String name = e.getName().getString();
-			String type = e.getType().toString();
-			if (q.isEmpty() || name.toLowerCase(Locale.ROOT).contains(q) || type.toLowerCase(Locale.ROOT).contains(q)) {
-				filtered.add(e);
-			}
+			String name = e.getName().getString().toLowerCase(Locale.ROOT);
+			String type = e.getType().toString().toLowerCase(Locale.ROOT);
+			if (q.isEmpty() || name.contains(q) || type.contains(q)) filtered.add(e);
 		}
 
 		list.setEntities(filtered);
@@ -91,8 +91,8 @@ public final class EntityCamSelectScreen extends Screen {
 	}
 
 	private final class EntityList extends ElementListWidget<EntityEntry> {
-		private EntityList(MinecraftClient client, int width, int height, int top, int bottom, int itemHeight) {
-			super(client, width, height, top, bottom, itemHeight);
+		private EntityList(MinecraftClient client, int width, int height, int y, int itemHeight) {
+			super(client, width, height, y, itemHeight);
 		}
 
 		void setEntities(List<Entity> entities) {
@@ -109,27 +109,22 @@ public final class EntityCamSelectScreen extends Screen {
 		}
 
 		@Override
-		public List<? extends Element> children() {
-			return List.of();
-		}
-
-		@Override
-		public List<? extends Selectable> selectableChildren() {
-			return List.of();
-		}
-
-		@Override
-		public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+		public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
 			if (client == null || client.player == null) return;
+
 			double d = Math.sqrt(entity.squaredDistanceTo(client.player));
 			String label = entity.getName().getString() + "  (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
-			context.drawTextWithShadow(textRenderer, Text.literal(label), x + 6, y + 6, hovered ? 0xFFFFAA : 0xFFFFFF);
+
+			int x = getX() + 6;
+			int y = getY() + (getHeight() - textRenderer.fontHeight) / 2;
+
+			context.drawTextWithShadow(textRenderer, Text.literal(label), x, y, hovered ? 0xFFFFAA : 0xFFFFFF);
 		}
 
 		@Override
-		public boolean mouseClicked(double mouseX, double mouseY, int button) {
-			if (button != 0) return false;
+		public boolean mouseClicked(Click click, boolean doubled) {
 			if (client == null) return false;
+			if (!click.isLeft()) return false;
 
 			if (entity.isAlive()) {
 				client.setCameraEntity(entity);
