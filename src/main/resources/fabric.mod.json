@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"id": "entitycam",
+	"version": "${version}",
+	"name": "EntityCam",
+	"description": "Switch your camera to other entities.",
+	"authors": ["ivanov"],
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"ru.ivanov.entitycam.EntityCamClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.18.2",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
+
