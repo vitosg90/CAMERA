@@ -28,35 +28,22 @@ public final class EntityCamClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"KeyBinding.Category.MISC",
-			GLFW.GLFW_KEY_V,
-		 KeyBinding.Category.MISC
-		));
+	"key.entitycam.toggle",
+	GLFW.GLFW_KEY_V,
+	KeyBinding.Category.MISC
+));
 
-		nextKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"KeyBinding.Category.MISC",
-			GLFW.GLFW_KEY_RIGHT_BRACKET,
-			KeyBinding.Category.MISC
-		));
+nextKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+	"key.entitycam.next",
+	GLFW.GLFW_KEY_RIGHT_BRACKET,
+	KeyBinding.Category.MISC
+));
 
-		prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"KeyBinding.Category.MISC",
-			GLFW.GLFW_KEY_LEFT_BRACKET,
-			KeyBinding.Category.MISC
-		));
-
-		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			while (toggleKey.wasPressed()) {
-				toggle(client);
-			}
-			while (nextKey.wasPressed()) {
-				cycle(client, +1);
-			}
-			while (prevKey.wasPressed()) {
-				cycle(client, -1);
-			}
-		});
-	}
+prevKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+	"key.entitycam.prev",
+	GLFW.GLFW_KEY_LEFT_BRACKET,
+	KeyBinding.Category.MISC
+));
 
 	private static void toggle(MinecraftClient client) {
 		if (client.player == null || client.world == null) return;
