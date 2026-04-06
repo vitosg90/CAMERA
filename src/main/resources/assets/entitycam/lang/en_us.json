@@ -2,6 +2,7 @@
 	"category.entitycam": "EntityCam",
 	"key.entitycam.toggle": "Toggle EntityCam",
 	"key.entitycam.next": "Next entity",
-	"key.entitycam.prev": "Previous entity"
+	"key.entitycam.prev": "Previous entity",
+	"key.entitycam.menu": "Open EntityCam menu"
 }
 
