@@ -4,7 +4,9 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.OtherClientPlayerEntity;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.EntityHitResult;
@@ -19,12 +21,17 @@ public final class EntityCamClient implements ClientModInitializer {
 	private static final int SEARCH_RADIUS_BLOCKS = 64;
 	private static final int SEARCH_RADIUS_SQUARED = SEARCH_RADIUS_BLOCKS * SEARCH_RADIUS_BLOCKS;
 
+	// Стабильный id для клиентского "дубля" игрока
+	private static final int BODY_PROXY_ID = -13371337;
+
 	private static KeyBinding toggleKey;
 	private static KeyBinding nextKey;
 	private static KeyBinding prevKey;
 	private static KeyBinding openMenuKey;
 
 	private static Entity originalCameraEntity;
+	private static boolean entityCamActive;
+	private static OtherClientPlayerEntity bodyProxy;
 
 	@Override
 	public void onInitializeClient() {
@@ -57,6 +64,9 @@ public final class EntityCamClient implements ClientModInitializer {
 			while (nextKey.wasPressed()) cycle(client, +1);
 			while (prevKey.wasPressed()) cycle(client, -1);
 			while (openMenuKey.wasPressed()) openMenu(client);
+
+			// Поддерживаем/удаляем "дубля" каждый тик.
+			tickBodyProxy(client);
 		});
 	}
 
@@ -69,29 +79,23 @@ public final class EntityCamClient implements ClientModInitializer {
 		if (client.player == null || client.world == null) return;
 
 		Entity currentCamera = client.getCameraEntity();
-		if (originalCameraEntity != null && currentCamera != null && currentCamera != originalCameraEntity) {
-			client.setCameraEntity(originalCameraEntity);
-			originalCameraEntity = null;
-			show(client, "Camera: you");
+		if (entityCamActive && currentCamera != null && currentCamera != client.player) {
+			switchBackToPlayer(client);
 			return;
 		}
 
-		originalCameraEntity = client.player;
-
 		Entity target = pickTargetEntity(client);
 		if (target == null) {
-			originalCameraEntity = null;
 			show(client, "No entity found");
 			return;
 		}
 
-		client.setCameraEntity(target);
-		show(client, "Camera: " + target.getName().getString());
+		switchCameraToEntity(client, target);
 	}
 
 	private static void cycle(MinecraftClient client, int dir) {
 		if (client.player == null || client.world == null) return;
-		if (originalCameraEntity == null) return;
+		if (!entityCamActive) return;
 
 		Entity current = client.getCameraEntity();
 		if (current == null) return;
@@ -108,8 +112,31 @@ public final class EntityCamClient implements ClientModInitializer {
 		int nextIdx = (idx < 0) ? 0 : Math.floorMod(idx + dir, candidates.size());
 
 		Entity next = candidates.get(nextIdx);
-		client.setCameraEntity(next);
-		show(client, "Camera: " + next.getName().getString());
+		switchCameraToEntity(client, next);
+	}
+
+	public static void switchCameraToEntity(MinecraftClient client, Entity target) {
+		if (client.player == null || client.world == null || target == null || !target.isAlive()) return;
+
+		if (originalCameraEntity == null) originalCameraEntity = client.player;
+
+		entityCamActive = true;
+		client.setCameraEntity(target);
+		ensureBodyProxy(client);
+		syncBodyProxy(client);
+
+		show(client, "Camera: " + target.getName().getString());
+	}
+
+	public static void switchBackToPlayer(MinecraftClient client) {
+		if (client.player == null) return;
+
+		client.setCameraEntity(client.player);
+		entityCamActive = false;
+		originalCameraEntity = null;
+		removeBodyProxy(client);
+
+		show(client, "Camera: you");
 	}
 
 	private static Entity pickTargetEntity(MinecraftClient client) {
@@ -130,6 +157,66 @@ public final class EntityCamClient implements ClientModInitializer {
 		return client.world.getOtherEntities(client.player, box, e ->
 			e != null && e.isAlive() && e.squaredDistanceTo(client.player) <= SEARCH_RADIUS_SQUARED
 		);
+	}
+
+	private static void tickBodyProxy(MinecraftClient client) {
+		if (client.player == null || client.world == null) {
+			removeBodyProxy(client);
+			entityCamActive = false;
+			originalCameraEntity = null;
+			return;
+		}
+
+		if (!entityCamActive) {
+			removeBodyProxy(client);
+			return;
+		}
+
+		Entity cam = client.getCameraEntity();
+		// Если камера по какой-то причине вернулась на игрока — выключаем режим корректно.
+		if (cam == null || cam == client.player) {
+			switchBackToPlayer(client);
+			return;
+		}
+
+		ensureBodyProxy(client);
+		syncBodyProxy(client);
+	}
+
+	private static void ensureBodyProxy(MinecraftClient client) {
+		ClientWorld world = client.world;
+		if (world == null || client.player == null) return;
+
+		if (bodyProxy != null && bodyProxy.getWorld() == world) return;
+
+		removeBodyProxy(client);
+
+		bodyProxy = new OtherClientPlayerEntity(world, client.player.getGameProfile());
+		bodyProxy.setId(BODY_PROXY_ID);
+
+		syncBodyProxy(client);
+		world.addEntity(bodyProxy);
+	}
+
+	private static void syncBodyProxy(MinecraftClient client) {
+		if (client.player == null || bodyProxy == null) return;
+
+		bodyProxy.copyPositionAndRotation(client.player);
+		bodyProxy.setYaw(client.player.getYaw());
+		bodyProxy.setPitch(client.player.getPitch());
+		bodyProxy.setHeadYaw(client.player.getHeadYaw());
+		bodyProxy.bodyYaw = client.player.bodyYaw;
+		bodyProxy.setPose(client.player.getPose());
+		bodyProxy.setSneaking(client.player.isSneaking());
+		bodyProxy.setSprinting(client.player.isSprinting());
+		bodyProxy.setOnGround(client.player.isOnGround());
+	}
+
+	private static void removeBodyProxy(MinecraftClient client) {
+		if (client.world != null) {
+			client.world.removeEntity(BODY_PROXY_ID, Entity.RemovalReason.DISCARDED);
+		}
+		bodyProxy = null;
 	}
 
 	private static void show(MinecraftClient client, String msg) {
