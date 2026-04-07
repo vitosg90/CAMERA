@@ -187,7 +187,7 @@ public final class EntityCamClient implements ClientModInitializer {
 		ClientWorld world = client.world;
 		if (world == null || client.player == null) return;
 
-		if (bodyProxy != null && bodyProxy.getWorld() == world) return;
+		if (bodyProxy != null && bodyProxy.getEntityWorld() == world) return;
 
 		removeBodyProxy(client);
 
