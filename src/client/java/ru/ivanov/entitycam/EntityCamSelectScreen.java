@@ -48,26 +48,25 @@ public final class EntityCamSelectScreen extends Screen {
 		int rowWidth = width - 20;
 		int rowHeight = 20;
 
-		// Статус строкой-кнопкой (чтобы текст точно рендерился как у обычных кнопок)
 		statusButton = ButtonWidget.builder(Text.literal("Loading..."), b -> {})
 			.dimensions(10, listTop, rowWidth, rowHeight)
 			.build();
 		statusButton.active = false;
 		addDrawableChild(statusButton);
 
-		// Кнопки сущностей (страницами)
 		int y = listTop + rowHeight + 4;
 		for (int i = 0; i < ROWS_PER_PAGE; i++) {
-			ButtonWidget btn = ButtonWidget.builder(Text.literal(""), b -> {})
+			final int slot = i;
+			ButtonWidget btn = ButtonWidget.builder(Text.literal(""), b -> onEntityButtonClick(slot))
 				.dimensions(10, y, rowWidth, rowHeight)
 				.build();
 			btn.visible = false;
+			btn.active = false;
 			addDrawableChild(btn);
 			entityButtons.add(btn);
 			y += rowHeight + 2;
 		}
 
-		// Навигация по страницам
 		prevPageButton = ButtonWidget.builder(Text.literal("< Prev"), b -> {
 			if (page > 0) {
 				page--;
@@ -142,6 +141,17 @@ public final class EntityCamSelectScreen extends Screen {
 		return e.getType().getTranslationKey().toLowerCase(Locale.ROOT).contains(q);
 	}
 
+	private void onEntityButtonClick(int slot) {
+		int idx = page * ROWS_PER_PAGE + slot;
+		if (idx < 0 || idx >= filteredEntities.size()) return;
+
+		Entity e = filteredEntities.get(idx);
+		if (client != null && e.isAlive()) {
+			client.setCameraEntity(e);
+			close();
+		}
+	}
+
 	private void applyPageToButtons() {
 		int total = filteredEntities.size();
 		int start = page * ROWS_PER_PAGE;
@@ -150,7 +160,7 @@ public final class EntityCamSelectScreen extends Screen {
 		if (total == 0) {
 			statusButton.setMessage(Text.literal("Entities: 0 (player is not listed)"));
 		} else {
-			statusButton.setMessage(Text.literal("Entities: " + total + "  |  Page " + (page + 1)));
+			statusButton.setMessage(Text.literal("Entities: " + total + " | Page " + (page + 1)));
 		}
 
 		for (int i = 0; i < entityButtons.size(); i++) {
@@ -162,15 +172,8 @@ public final class EntityCamSelectScreen extends Screen {
 				double d = (client != null && client.player != null) ? Math.sqrt(e.squaredDistanceTo(client.player)) : 0.0;
 				String label = e.getName().getString() + " (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
 				btn.setMessage(Text.literal(label));
-
 				btn.visible = true;
 				btn.active = true;
-				btn.setPressAction(b -> {
-					if (client != null && e.isAlive()) {
-						client.setCameraEntity(e);
-						close();
-					}
-				});
 			} else {
 				btn.visible = false;
 				btn.active = false;
