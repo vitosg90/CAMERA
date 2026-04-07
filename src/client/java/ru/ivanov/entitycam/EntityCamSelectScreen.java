@@ -1,6 +1,5 @@
 package ru.ivanov.entitycam;
 
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -117,7 +116,6 @@ public final class EntityCamSelectScreen extends Screen {
 		return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
 	}
 
-	// В 1.21 Screen/ParentElement использует Click
 	@Override
 	public boolean mouseClicked(Click click, boolean doubleClick) {
 		if (click.isLeft() && client != null && client.player != null) {
@@ -151,17 +149,17 @@ public final class EntityCamSelectScreen extends Screen {
 		this.renderInGameBackground(context);
 		super.render(context, mouseX, mouseY, delta);
 
-		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 6, 0xFFFFFF);
+		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 6, 0xFFFFFFFF);
 
 		if (client != null && client.player != null) {
 			Text hint = Text.literal("Click a row to switch camera. Radius: " + SEARCH_RADIUS_BLOCKS + " blocks")
 				.formatted(Formatting.GRAY);
-			context.drawTextWithShadow(textRenderer, hint, 10, 44, 0xFFFFFF);
+			context.drawTextWithShadow(textRenderer, hint, 10, 44, 0xFFFFFFFF);
 
 			Text countLine = currentEntities.isEmpty()
 				? Text.literal("No other entities in range (player is not listed).").formatted(Formatting.YELLOW)
 				: Text.literal("Entities: " + currentEntities.size()).formatted(Formatting.GRAY);
-			context.drawTextWithShadow(textRenderer, countLine, 10, 56, 0xFFFFFF);
+			context.drawTextWithShadow(textRenderer, countLine, 10, 56, 0xFFFFFFFF);
 		}
 
 		drawEntityList(context, mouseX, mouseY);
@@ -176,7 +174,7 @@ public final class EntityCamSelectScreen extends Screen {
 		// фон
 		context.fill(listLeft, listTop, listRight, listBottom, 0x80000000);
 
-		// рамка (четыре линии вместо drawBorder)
+		// рамка (ARGB!)
 		int borderColor = 0xFFFFFFFF;
 		context.fill(listLeft, listTop, listRight, listTop + 1, borderColor);           // верх
 		context.fill(listLeft, listBottom - 1, listRight, listBottom, borderColor);     // низ
@@ -202,7 +200,7 @@ public final class EntityCamSelectScreen extends Screen {
 				: 0.0;
 
 			String label = e.getName().getString() + "  (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
-			int color = hovered ? 0xFFFFAA : 0xFFFFFF;
+			int color = hovered ? 0xFFFFFFAA : 0xFFFFFFFF;
 
 			context.drawTextWithShadow(textRenderer, label, listLeft + 4, rowY + 2, color);
 		}
