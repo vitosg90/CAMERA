@@ -8,8 +8,10 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.Entity;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
 
 import java.util.ArrayList;
@@ -37,7 +39,7 @@ public final class EntityCamSelectScreen extends Screen {
 		filter.setChangedListener(ignored -> refresh());
 		addDrawableChild(filter);
 
-		int listTop = top + 24;
+		int listTop = top + 24 + 28;
 		int listHeight = height - listTop - 40;
 
 		list = new EntityList(client, width - 20, listHeight, listTop, ITEM_HEIGHT);
@@ -71,15 +73,31 @@ public final class EntityCamSelectScreen extends Screen {
 
 		List<Entity> filtered = new ArrayList<>(entities.size());
 		for (Entity e : entities) {
-			String name = e.getName().getString();
-			String type = e.getType().toString();
-			if (q.isEmpty() || name.toLowerCase(Locale.ROOT).contains(q) || type.toLowerCase(Locale.ROOT).contains(q)) {
-				filtered.add(e);
-			}
+			if (entityMatchesFilter(e, q)) filtered.add(e);
 		}
 
 		lastEntityCount = filtered.size();
 		list.setEntities(filtered);
+	}
+
+	private static boolean entityMatchesFilter(Entity e, String q) {
+		if (q.isEmpty()) return true;
+
+		String name = e.getName().getString().toLowerCase(Locale.ROOT);
+		if (name.contains(q)) return true;
+
+		String typeStr = e.getType().toString().toLowerCase(Locale.ROOT);
+		if (typeStr.contains(q)) return true;
+
+		Identifier id = Registries.ENTITY_TYPE.getId(e.getType());
+		if (id != null) {
+			String idFull = id.toString().toLowerCase(Locale.ROOT);
+			String path = id.getPath().toLowerCase(Locale.ROOT);
+			if (idFull.contains(q) || path.contains(q)) return true;
+		}
+
+		String transKey = e.getType().getTranslationKey().toLowerCase(Locale.ROOT);
+		return transKey.contains(q);
 	}
 
 	@Override
@@ -108,7 +126,13 @@ public final class EntityCamSelectScreen extends Screen {
 
 		void setEntities(List<Entity> entities) {
 			clearEntries();
-			for (Entity e : entities) addEntry(new EntityEntry(e));
+			int rowWidth = getRowWidth();
+			if (rowWidth < 8) rowWidth = Math.max(8, width - 36);
+			for (Entity e : entities) {
+				EntityEntry entry = new EntityEntry(e);
+				entry.setWidth(rowWidth);
+				addEntry(entry);
+			}
 		}
 	}
 
