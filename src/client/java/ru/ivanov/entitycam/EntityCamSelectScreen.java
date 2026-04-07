@@ -147,7 +147,7 @@ public final class EntityCamSelectScreen extends Screen {
 
 		Entity e = filteredEntities.get(idx);
 		if (client != null && e.isAlive()) {
-			EntityCamClient.switchCameraToEntity(client, entity);
+			EntityCamClient.switchCameraToEntity(client, e);
 			close();
 		}
 	}
