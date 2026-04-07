@@ -23,6 +23,7 @@ public final class EntityCamSelectScreen extends Screen {
 
 	private TextFieldWidget filter;
 	private EntityList list;
+	private int lastEntityCount;
 
 	public EntityCamSelectScreen() {
 		super(Text.literal("EntityCam"));
@@ -62,7 +63,7 @@ public final class EntityCamSelectScreen extends Screen {
 	private void refresh() {
 		if (client == null || client.player == null || client.world == null) return;
 
-		String q = (filter.getText() == null ? "" : filter.getText()).trim().toLowerCase(Locale.ROOT);
+		String q = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
 
 		Box box = client.player.getBoundingBox().expand(SEARCH_RADIUS_BLOCKS);
 		List<Entity> entities = client.world.getOtherEntities(client.player, box, e -> e != null && e.isAlive());
@@ -70,24 +71,34 @@ public final class EntityCamSelectScreen extends Screen {
 
 		List<Entity> filtered = new ArrayList<>(entities.size());
 		for (Entity e : entities) {
-			String name = e.getName().getString().toLowerCase(Locale.ROOT);
-			String type = e.getType().toString().toLowerCase(Locale.ROOT);
-			if (q.isEmpty() || name.contains(q) || type.contains(q)) filtered.add(e);
+			String name = e.getName().getString();
+			String type = e.getType().toString();
+			if (q.isEmpty() || name.toLowerCase(Locale.ROOT).contains(q) || type.toLowerCase(Locale.ROOT).contains(q)) {
+				filtered.add(e);
+			}
 		}
 
+		lastEntityCount = filtered.size();
 		list.setEntities(filtered);
 	}
 
 	@Override
 	public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-		this.renderInGameBackground(context);	
+		this.renderInGameBackground(context);
 		super.render(context, mouseX, mouseY, delta);
 
 		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 6, 0xFFFFFF);
 
-		Text hint = Text.literal("Click an entry to switch camera. Radius: " + SEARCH_RADIUS_BLOCKS + " blocks")
-			.formatted(Formatting.GRAY);
-		context.drawTextWithShadow(textRenderer, hint, 10, 44, 0xFFFFFF);
+		if (client != null && client.player != null) {
+			Text hint = Text.literal("Click an entry to switch camera. Radius: " + SEARCH_RADIUS_BLOCKS + " blocks")
+				.formatted(Formatting.GRAY);
+			context.drawTextWithShadow(textRenderer, hint, 10, 44, 0xFFFFFF);
+
+			Text countLine = lastEntityCount == 0
+				? Text.literal("No other entities in range (player is not listed). Try Refresh or move closer.").formatted(Formatting.YELLOW)
+				: Text.literal("Entities: " + lastEntityCount).formatted(Formatting.GRAY);
+			context.drawTextWithShadow(textRenderer, countLine, 10, 56, 0xFFFFFF);
+		}
 	}
 
 	private final class EntityList extends ElementListWidget<EntityEntry> {
@@ -100,16 +111,17 @@ public final class EntityCamSelectScreen extends Screen {
 			for (Entity e : entities) addEntry(new EntityEntry(e));
 		}
 	}
-		
-	
+
 	private final class EntityEntry extends ElementListWidget.Entry<EntityEntry> {
 		private final Entity entity;
 
 		private EntityEntry(Entity entity) {
 			this.entity = entity;
+			setHeight(ITEM_HEIGHT);
 		}
-			@Override
-		public List<net.minecraft.client.gui.Element> children() {
+
+		@Override
+		public List<? extends net.minecraft.client.gui.Element> children() {
 			return List.of();
 		}
 
@@ -117,6 +129,7 @@ public final class EntityCamSelectScreen extends Screen {
 		public List<net.minecraft.client.gui.Selectable> selectableChildren() {
 			return List.of();
 		}
+
 		@Override
 		public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
 			if (client == null || client.player == null) return;
