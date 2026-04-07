@@ -1,11 +1,9 @@
 package ru.ivanov.entitycam;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.Entity;
 import net.minecraft.registry.Registries;
@@ -21,11 +19,14 @@ import java.util.Locale;
 
 public final class EntityCamSelectScreen extends Screen {
 	private static final int SEARCH_RADIUS_BLOCKS = 64;
-	private static final int ITEM_HEIGHT = 22;
+	private static final int ROW_HEIGHT = 14;
+	private static final int MAX_ROWS = 20;
 
 	private TextFieldWidget filter;
-	private EntityList list;
-	private int lastEntityCount;
+	private List<Entity> currentEntities = List.of();
+
+	// для простого скролла
+	private int scrollOffset = 0;
 
 	public EntityCamSelectScreen() {
 		super(Text.literal("EntityCam"));
@@ -36,19 +37,16 @@ public final class EntityCamSelectScreen extends Screen {
 		int top = 20;
 
 		filter = new TextFieldWidget(textRenderer, 10, top, width - 20, 20, Text.literal("Filter"));
-		filter.setChangedListener(ignored -> refresh());
+		filter.setChangedListener(ignored -> {
+			scrollOffset = 0;
+			refresh();
+		});
 		addDrawableChild(filter);
 
-		int listTop = top + 24 + 28;
-		int listHeight = height - listTop - 40;
-
-		list = new EntityList(client, width - 20, listHeight, listTop, ITEM_HEIGHT);
-		list.setX(10);
-		addDrawableChild(list);
-
-		addDrawableChild(ButtonWidget.builder(Text.literal("Refresh"), b -> refresh())
-			.dimensions(10, height - 30, 90, 20)
-			.build());
+		addDrawableChild(ButtonWidget.builder(Text.literal("Refresh"), b -> {
+			scrollOffset = 0;
+			refresh();
+		}).dimensions(10, height - 30, 90, 20).build());
 
 		addDrawableChild(ButtonWidget.builder(Text.literal("Back to you"), b -> {
 			if (client != null && client.player != null) client.setCameraEntity(client.player);
@@ -56,14 +54,16 @@ public final class EntityCamSelectScreen extends Screen {
 		}).dimensions(110, height - 30, 110, 20).build());
 
 		addDrawableChild(ButtonWidget.builder(Text.literal("Close"), b -> close())
-			.dimensions(width - 100, height - 30, 90, 20)
-			.build());
+			.dimensions(width - 100, height - 30, 90, 20).build());
 
 		refresh();
 	}
 
 	private void refresh() {
-		if (client == null || client.player == null || client.world == null) return;
+		if (client == null || client.player == null || client.world == null) {
+			currentEntities = List.of();
+			return;
+		}
 
 		String q = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
 
@@ -76,8 +76,7 @@ public final class EntityCamSelectScreen extends Screen {
 			if (entityMatchesFilter(e, q)) filtered.add(e);
 		}
 
-		lastEntityCount = filtered.size();
-		list.setEntities(filtered);
+		currentEntities = filtered;
 	}
 
 	private static boolean entityMatchesFilter(Entity e, String q) {
@@ -101,6 +100,50 @@ public final class EntityCamSelectScreen extends Screen {
 	}
 
 	@Override
+	public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+		if (currentEntities.isEmpty()) return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
+
+		int totalRows = currentEntities.size();
+		int visible = Math.min(MAX_ROWS, totalRows);
+		int maxOffset = Math.max(0, totalRows - visible);
+
+		if (vertical < 0 && scrollOffset < maxOffset) {
+			scrollOffset++;
+			return true;
+		}
+		if (vertical > 0 && scrollOffset > 0) {
+			scrollOffset--;
+			return true;
+		}
+		return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
+	}
+
+	@Override
+	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		if (button == 0 && client != null && client.player != null) {
+			int listLeft = 10;
+			int listRight = width - 10;
+			int listTop = 20 + 24 + 28;
+
+			if (mouseX >= listLeft && mouseX <= listRight && mouseY >= listTop) {
+				int indexInView = (int) ((mouseY - listTop) / ROW_HEIGHT);
+				if (indexInView >= 0 && indexInView < MAX_ROWS) {
+					int absoluteIndex = scrollOffset + indexInView;
+					if (absoluteIndex >= 0 && absoluteIndex < currentEntities.size()) {
+						Entity e = currentEntities.get(absoluteIndex);
+						if (e.isAlive()) {
+							client.setCameraEntity(e);
+							close();
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return super.mouseClicked(mouseX, mouseY, button);
+	}
+
+	@Override
 	public void render(DrawContext context, int mouseX, int mouseY, float delta) {
 		this.renderInGameBackground(context);
 		super.render(context, mouseX, mouseY, delta);
@@ -108,76 +151,52 @@ public final class EntityCamSelectScreen extends Screen {
 		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 6, 0xFFFFFF);
 
 		if (client != null && client.player != null) {
-			Text hint = Text.literal("Click an entry to switch camera. Radius: " + SEARCH_RADIUS_BLOCKS + " blocks")
+			Text hint = Text.literal("Click a row to switch camera. Radius: " + SEARCH_RADIUS_BLOCKS + " blocks")
 				.formatted(Formatting.GRAY);
 			context.drawTextWithShadow(textRenderer, hint, 10, 44, 0xFFFFFF);
 
-			Text countLine = lastEntityCount == 0
-				? Text.literal("No other entities in range (player is not listed). Try Refresh or move closer.").formatted(Formatting.YELLOW)
-				: Text.literal("Entities: " + lastEntityCount).formatted(Formatting.GRAY);
+			Text countLine = currentEntities.isEmpty()
+				? Text.literal("No other entities in range (player is not listed).").formatted(Formatting.YELLOW)
+				: Text.literal("Entities: " + currentEntities.size()).formatted(Formatting.GRAY);
 			context.drawTextWithShadow(textRenderer, countLine, 10, 56, 0xFFFFFF);
 		}
+
+		drawEntityList(context, mouseX, mouseY);
 	}
 
-	private final class EntityList extends ElementListWidget<EntityEntry> {
-		private EntityList(MinecraftClient client, int width, int height, int y, int itemHeight) {
-			super(client, width, height, y, itemHeight);
-		}
+	private void drawEntityList(DrawContext context, int mouseX, int mouseY) {
+		int listLeft = 10;
+		int listRight = width - 10;
+		int listTop = 20 + 24 + 28;
+		int listBottom = listTop + ROW_HEIGHT * MAX_ROWS;
 
-		void setEntities(List<Entity> entities) {
-			clearEntries();
-			int rowWidth = getRowWidth();
-			if (rowWidth < 8) rowWidth = Math.max(8, width - 36);
-			for (Entity e : entities) {
-				EntityEntry entry = new EntityEntry(e);
-				entry.setWidth(rowWidth);
-				addEntry(entry);
-			}
-		}
-	}
+		// рамка
+		int borderColor = 0xFFFFFFFF;
+		context.fill(listLeft, listTop, listRight, listBottom, 0x80000000);
+		context.drawBorder(listLeft, listTop, listRight - listLeft, listBottom - listTop, borderColor);
 
-	private final class EntityEntry extends ElementListWidget.Entry<EntityEntry> {
-		private final Entity entity;
+		if (currentEntities.isEmpty()) return;
 
-		private EntityEntry(Entity entity) {
-			this.entity = entity;
-			setHeight(ITEM_HEIGHT);
-		}
+		int totalRows = currentEntities.size();
+		int visible = Math.min(MAX_ROWS, totalRows);
 
-		@Override
-		public List<? extends net.minecraft.client.gui.Element> children() {
-			return List.of();
-		}
+		for (int i = 0; i < visible; i++) {
+			int entityIndex = scrollOffset + i;
+			if (entityIndex >= totalRows) break;
 
-		@Override
-		public List<net.minecraft.client.gui.Selectable> selectableChildren() {
-			return List.of();
-		}
+			Entity e = currentEntities.get(entityIndex);
 
-		@Override
-		public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
-			if (client == null || client.player == null) return;
+			int rowY = listTop + i * ROW_HEIGHT;
+			boolean hovered = mouseX >= listLeft && mouseX <= listRight && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
 
-			double d = Math.sqrt(entity.squaredDistanceTo(client.player));
-			String label = entity.getName().getString() + "  (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
+			double d = client != null && client.player != null
+				? Math.sqrt(e.squaredDistanceTo(client.player))
+				: 0.0;
 
-			int x = getX() + 6;
-			int y = getY() + (getHeight() - textRenderer.fontHeight) / 2;
+			String label = e.getName().getString() + "  (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
+			int color = hovered ? 0xFFFFAA : 0xFFFFFF;
 
-			context.drawTextWithShadow(textRenderer, Text.literal(label), x, y, hovered ? 0xFFFFAA : 0xFFFFFF);
-		}
-
-		@Override
-		public boolean mouseClicked(Click click, boolean doubled) {
-			if (client == null) return false;
-			if (!click.isLeft()) return false;
-
-			if (entity.isAlive()) {
-				client.setCameraEntity(entity);
-				close();
-				return true;
-			}
-			return false;
+			context.drawTextWithShadow(textRenderer, label, listLeft + 4, rowY + 2, color);
 		}
 	}
 }
