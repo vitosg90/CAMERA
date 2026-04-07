@@ -1,6 +1,7 @@
 package ru.ivanov.entitycam;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -24,8 +25,6 @@ public final class EntityCamSelectScreen extends Screen {
 
 	private TextFieldWidget filter;
 	private List<Entity> currentEntities = List.of();
-
-	// для простого скролла
 	private int scrollOffset = 0;
 
 	public EntityCamSelectScreen() {
@@ -118,9 +117,13 @@ public final class EntityCamSelectScreen extends Screen {
 		return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
 	}
 
+	// В 1.21 Screen/ParentElement использует Click
 	@Override
-	public boolean mouseClicked(double mouseX, double mouseY, int button) {
-		if (button == 0 && client != null && client.player != null) {
+	public boolean mouseClicked(Click click, boolean doubleClick) {
+		if (click.isLeft() && client != null && client.player != null) {
+			double mouseX = click.x();
+			double mouseY = click.y();
+
 			int listLeft = 10;
 			int listRight = width - 10;
 			int listTop = 20 + 24 + 28;
@@ -140,7 +143,7 @@ public final class EntityCamSelectScreen extends Screen {
 				}
 			}
 		}
-		return super.mouseClicked(mouseX, mouseY, button);
+		return super.mouseClicked(click, doubleClick);
 	}
 
 	@Override
@@ -170,10 +173,15 @@ public final class EntityCamSelectScreen extends Screen {
 		int listTop = 20 + 24 + 28;
 		int listBottom = listTop + ROW_HEIGHT * MAX_ROWS;
 
-		// рамка
-		int borderColor = 0xFFFFFFFF;
+		// фон
 		context.fill(listLeft, listTop, listRight, listBottom, 0x80000000);
-		context.drawBorder(listLeft, listTop, listRight - listLeft, listBottom - listTop, borderColor);
+
+		// рамка (четыре линии вместо drawBorder)
+		int borderColor = 0xFFFFFFFF;
+		context.fill(listLeft, listTop, listRight, listTop + 1, borderColor);           // верх
+		context.fill(listLeft, listBottom - 1, listRight, listBottom, borderColor);     // низ
+		context.fill(listLeft, listTop, listLeft + 1, listBottom, borderColor);         // лево
+		context.fill(listRight - 1, listTop, listRight, listBottom, borderColor);       // право
 
 		if (currentEntities.isEmpty()) return;
 
