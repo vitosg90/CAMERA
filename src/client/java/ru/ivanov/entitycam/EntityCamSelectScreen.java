@@ -1,6 +1,5 @@
 package ru.ivanov.entitycam;
 
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -8,7 +7,6 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.Entity;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
 
@@ -19,12 +17,17 @@ import java.util.Locale;
 
 public final class EntityCamSelectScreen extends Screen {
 	private static final int SEARCH_RADIUS_BLOCKS = 64;
-	private static final int ROW_HEIGHT = 14;
-	private static final int MAX_ROWS = 20;
+	private static final int ROWS_PER_PAGE = 12;
 
 	private TextFieldWidget filter;
-	private List<Entity> currentEntities = List.of();
-	private int scrollOffset = 0;
+	private final List<Entity> filteredEntities = new ArrayList<>();
+	private final List<ButtonWidget> entityButtons = new ArrayList<>();
+
+	private ButtonWidget statusButton;
+	private ButtonWidget prevPageButton;
+	private ButtonWidget nextPageButton;
+
+	private int page = 0;
 
 	public EntityCamSelectScreen() {
 		super(Text.literal("EntityCam"));
@@ -36,13 +39,53 @@ public final class EntityCamSelectScreen extends Screen {
 
 		filter = new TextFieldWidget(textRenderer, 10, top, width - 20, 20, Text.literal("Filter"));
 		filter.setChangedListener(ignored -> {
-			scrollOffset = 0;
+			page = 0;
 			refresh();
 		});
 		addDrawableChild(filter);
 
+		int listTop = top + 28;
+		int rowWidth = width - 20;
+		int rowHeight = 20;
+
+		// Статус строкой-кнопкой (чтобы текст точно рендерился как у обычных кнопок)
+		statusButton = ButtonWidget.builder(Text.literal("Loading..."), b -> {})
+			.dimensions(10, listTop, rowWidth, rowHeight)
+			.build();
+		statusButton.active = false;
+		addDrawableChild(statusButton);
+
+		// Кнопки сущностей (страницами)
+		int y = listTop + rowHeight + 4;
+		for (int i = 0; i < ROWS_PER_PAGE; i++) {
+			ButtonWidget btn = ButtonWidget.builder(Text.literal(""), b -> {})
+				.dimensions(10, y, rowWidth, rowHeight)
+				.build();
+			btn.visible = false;
+			addDrawableChild(btn);
+			entityButtons.add(btn);
+			y += rowHeight + 2;
+		}
+
+		// Навигация по страницам
+		prevPageButton = ButtonWidget.builder(Text.literal("< Prev"), b -> {
+			if (page > 0) {
+				page--;
+				applyPageToButtons();
+			}
+		}).dimensions(10, height - 56, 100, 20).build();
+		addDrawableChild(prevPageButton);
+
+		nextPageButton = ButtonWidget.builder(Text.literal("Next >"), b -> {
+			if ((page + 1) * ROWS_PER_PAGE < filteredEntities.size()) {
+				page++;
+				applyPageToButtons();
+			}
+		}).dimensions(120, height - 56, 100, 20).build();
+		addDrawableChild(nextPageButton);
+
 		addDrawableChild(ButtonWidget.builder(Text.literal("Refresh"), b -> {
-			scrollOffset = 0;
+			page = 0;
 			refresh();
 		}).dimensions(10, height - 30, 90, 20).build());
 
@@ -58,8 +101,11 @@ public final class EntityCamSelectScreen extends Screen {
 	}
 
 	private void refresh() {
+		filteredEntities.clear();
+
 		if (client == null || client.player == null || client.world == null) {
-			currentEntities = List.of();
+			statusButton.setMessage(Text.literal("World not loaded"));
+			applyPageToButtons();
 			return;
 		}
 
@@ -69,15 +115,15 @@ public final class EntityCamSelectScreen extends Screen {
 		List<Entity> entities = client.world.getOtherEntities(client.player, box, e -> e != null && e.isAlive());
 		entities.sort(Comparator.comparingDouble(e -> e.squaredDistanceTo(client.player)));
 
-		List<Entity> filtered = new ArrayList<>(entities.size());
 		for (Entity e : entities) {
-			if (entityMatchesFilter(e, q)) filtered.add(e);
+			if (matchesFilter(e, q)) filteredEntities.add(e);
 		}
 
-		currentEntities = filtered;
+		if (page * ROWS_PER_PAGE >= filteredEntities.size()) page = 0;
+		applyPageToButtons();
 	}
 
-	private static boolean entityMatchesFilter(Entity e, String q) {
+	private boolean matchesFilter(Entity e, String q) {
 		if (q.isEmpty()) return true;
 
 		String name = e.getName().getString().toLowerCase(Locale.ROOT);
@@ -88,121 +134,56 @@ public final class EntityCamSelectScreen extends Screen {
 
 		Identifier id = Registries.ENTITY_TYPE.getId(e.getType());
 		if (id != null) {
-			String idFull = id.toString().toLowerCase(Locale.ROOT);
+			String full = id.toString().toLowerCase(Locale.ROOT);
 			String path = id.getPath().toLowerCase(Locale.ROOT);
-			if (idFull.contains(q) || path.contains(q)) return true;
+			if (full.contains(q) || path.contains(q)) return true;
 		}
 
-		String transKey = e.getType().getTranslationKey().toLowerCase(Locale.ROOT);
-		return transKey.contains(q);
+		return e.getType().getTranslationKey().toLowerCase(Locale.ROOT).contains(q);
 	}
 
-	@Override
-	public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
-		if (currentEntities.isEmpty()) return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
+	private void applyPageToButtons() {
+		int total = filteredEntities.size();
+		int start = page * ROWS_PER_PAGE;
+		int end = Math.min(start + ROWS_PER_PAGE, total);
 
-		int totalRows = currentEntities.size();
-		int visible = Math.min(MAX_ROWS, totalRows);
-		int maxOffset = Math.max(0, totalRows - visible);
-
-		if (vertical < 0 && scrollOffset < maxOffset) {
-			scrollOffset++;
-			return true;
+		if (total == 0) {
+			statusButton.setMessage(Text.literal("Entities: 0 (player is not listed)"));
+		} else {
+			statusButton.setMessage(Text.literal("Entities: " + total + "  |  Page " + (page + 1)));
 		}
-		if (vertical > 0 && scrollOffset > 0) {
-			scrollOffset--;
-			return true;
-		}
-		return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
-	}
 
-	@Override
-	public boolean mouseClicked(Click click, boolean doubleClick) {
-		if (click.isLeft() && client != null && client.player != null) {
-			double mouseX = click.x();
-			double mouseY = click.y();
+		for (int i = 0; i < entityButtons.size(); i++) {
+			ButtonWidget btn = entityButtons.get(i);
+			int idx = start + i;
 
-			int listLeft = 10;
-			int listRight = width - 10;
-			int listTop = 20 + 24 + 28;
+			if (idx < end) {
+				Entity e = filteredEntities.get(idx);
+				double d = (client != null && client.player != null) ? Math.sqrt(e.squaredDistanceTo(client.player)) : 0.0;
+				String label = e.getName().getString() + " (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
+				btn.setMessage(Text.literal(label));
 
-			if (mouseX >= listLeft && mouseX <= listRight && mouseY >= listTop) {
-				int indexInView = (int) ((mouseY - listTop) / ROW_HEIGHT);
-				if (indexInView >= 0 && indexInView < MAX_ROWS) {
-					int absoluteIndex = scrollOffset + indexInView;
-					if (absoluteIndex >= 0 && absoluteIndex < currentEntities.size()) {
-						Entity e = currentEntities.get(absoluteIndex);
-						if (e.isAlive()) {
-							client.setCameraEntity(e);
-							close();
-							return true;
-						}
+				btn.visible = true;
+				btn.active = true;
+				btn.setPressAction(b -> {
+					if (client != null && e.isAlive()) {
+						client.setCameraEntity(e);
+						close();
 					}
-				}
+				});
+			} else {
+				btn.visible = false;
+				btn.active = false;
 			}
 		}
-		return super.mouseClicked(click, doubleClick);
+
+		prevPageButton.active = page > 0;
+		nextPageButton.active = (page + 1) * ROWS_PER_PAGE < total;
 	}
 
 	@Override
 	public void render(DrawContext context, int mouseX, int mouseY, float delta) {
 		this.renderInGameBackground(context);
 		super.render(context, mouseX, mouseY, delta);
-
-		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 6, 0xFFFFFFFF);
-
-		if (client != null && client.player != null) {
-			Text hint = Text.literal("Click a row to switch camera. Radius: " + SEARCH_RADIUS_BLOCKS + " blocks")
-				.formatted(Formatting.GRAY);
-			context.drawTextWithShadow(textRenderer, hint, 10, 44, 0xFFFFFFFF);
-
-			Text countLine = currentEntities.isEmpty()
-				? Text.literal("No other entities in range (player is not listed).").formatted(Formatting.YELLOW)
-				: Text.literal("Entities: " + currentEntities.size()).formatted(Formatting.GRAY);
-			context.drawTextWithShadow(textRenderer, countLine, 10, 56, 0xFFFFFFFF);
-		}
-
-		drawEntityList(context, mouseX, mouseY);
-	}
-
-	private void drawEntityList(DrawContext context, int mouseX, int mouseY) {
-		int listLeft = 10;
-		int listRight = width - 10;
-		int listTop = 20 + 24 + 28;
-		int listBottom = listTop + ROW_HEIGHT * MAX_ROWS;
-
-		// фон
-		context.fill(listLeft, listTop, listRight, listBottom, 0x80000000);
-
-		// рамка (ARGB!)
-		int borderColor = 0xFFFFFFFF;
-		context.fill(listLeft, listTop, listRight, listTop + 1, borderColor);           // верх
-		context.fill(listLeft, listBottom - 1, listRight, listBottom, borderColor);     // низ
-		context.fill(listLeft, listTop, listLeft + 1, listBottom, borderColor);         // лево
-		context.fill(listRight - 1, listTop, listRight, listBottom, borderColor);       // право
-
-		if (currentEntities.isEmpty()) return;
-
-		int totalRows = currentEntities.size();
-		int visible = Math.min(MAX_ROWS, totalRows);
-
-		for (int i = 0; i < visible; i++) {
-			int entityIndex = scrollOffset + i;
-			if (entityIndex >= totalRows) break;
-
-			Entity e = currentEntities.get(entityIndex);
-
-			int rowY = listTop + i * ROW_HEIGHT;
-			boolean hovered = mouseX >= listLeft && mouseX <= listRight && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-
-			double d = client != null && client.player != null
-				? Math.sqrt(e.squaredDistanceTo(client.player))
-				: 0.0;
-
-			String label = e.getName().getString() + "  (" + String.format(Locale.ROOT, "%.1f", d) + "m)";
-			int color = hovered ? 0xFFFFFFAA : 0xFFFFFFFF;
-
-			context.drawTextWithShadow(textRenderer, label, listLeft + 4, rowY + 2, color);
-		}
 	}
 }
