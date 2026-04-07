@@ -89,7 +89,7 @@ public final class EntityCamSelectScreen extends Screen {
 		}).dimensions(10, height - 30, 90, 20).build());
 
 		addDrawableChild(ButtonWidget.builder(Text.literal("Back to you"), b -> {
-			if (client != null && client.player != null) client.setCameraEntity(client.player);
+			if (client != null) EntityCamClient.switchBackToPlayer(client);
 			close();
 		}).dimensions(110, height - 30, 110, 20).build());
 
@@ -147,7 +147,7 @@ public final class EntityCamSelectScreen extends Screen {
 
 		Entity e = filteredEntities.get(idx);
 		if (client != null && e.isAlive()) {
-			client.setCameraEntity(e);
+			EntityCamClient.switchCameraToEntity(client, entity);
 			close();
 		}
 	}
